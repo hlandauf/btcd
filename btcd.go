@@ -5,122 +5,78 @@
 package main
 
 import (
-	"fmt"
-	"net"
-	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"runtime"
-	"runtime/pprof"
 
+  "github.com/hlandauf/btcserver"
 	"github.com/hlandauf/btcd/limits"
+	"github.com/hlandau/degoutils/service"
+  "github.com/hlandau/xlog"
 )
 
-var (
-	cfg             *config
-	shutdownChannel = make(chan struct{})
-)
-
-// winServiceMain is only invoked on Windows.  It detects when btcd is running
-// as a service and reacts accordingly.
-var winServiceMain func() (bool, error)
+var log, Log = xlog.New("BTCD")
+var shutdownChannel = make(chan struct{})
 
 // btcdMain is the real main function for btcd.  It is necessary to work around
 // the fact that deferred functions do not run when os.Exit() is called.  The
 // optional serverChan parameter is mainly used by the service code to be
 // notified with the server once it is setup so it can gracefully stop it when
 // requested from the service control manager.
-func btcdMain(serverChan chan<- *server) error {
+func btcdMain(serverChan chan<- *btcserver.Server) error {
 	// Load configuration and parse command line.  This function also
 	// initializes logging and configures it accordingly.
 	tcfg, _, err := loadConfig()
 	if err != nil {
 		return err
 	}
-	cfg = tcfg
-	defer backendLog.Flush()
+  cfg := tcfg
+	defer xlog.Flush()
 
 	// Show version at startup.
-	btcdLog.Infof("Version %s", version())
-
-	// Enable http profiling server if requested.
-	if cfg.Profile != "" {
-		go func() {
-			listenAddr := net.JoinHostPort("", cfg.Profile)
-			btcdLog.Infof("Profile server listening on %s", listenAddr)
-			profileRedirect := http.RedirectHandler("/debug/pprof",
-				http.StatusSeeOther)
-			http.Handle("/", profileRedirect)
-			btcdLog.Errorf("%v", http.ListenAndServe(listenAddr, nil))
-		}()
-	}
-
-	// Write cpu profile if requested.
-	if cfg.CPUProfile != "" {
-		f, err := os.Create(cfg.CPUProfile)
-		if err != nil {
-			btcdLog.Errorf("Unable to create cpu profile: %v", err)
-			return err
-		}
-		pprof.StartCPUProfile(f)
-		defer f.Close()
-		defer pprof.StopCPUProfile()
-	}
-
-	// Perform upgrades to btcd as new versions require it.
-	if err := doUpgrades(); err != nil {
-		btcdLog.Errorf("%v", err)
-		return err
-	}
+	//log.Infof("Version %s", version())
 
 	// Load the block database.
-	db, err := loadBlockDB()
+	db, err := cfg.LoadBlockDB()
 	if err != nil {
-		btcdLog.Errorf("%v", err)
+		log.Errorf("%v", err)
 		return err
 	}
 	defer db.Close()
 
-	// Ensure the database is sync'd and closed on Ctrl+C.
-	addInterruptHandler(func() {
-		btcdLog.Infof("Gracefully shutting down the database...")
-		db.RollbackClose()
-	})
+	cfg.NodeConfig.DB = db
 
 	// Create server and start it.
-	server, err := newServer(cfg.Listeners, db, activeNetParams.Params)
+	server, err := btcserver.New(cfg)
 	if err != nil {
 		// TODO(oga) this logging could do with some beautifying.
-		btcdLog.Errorf("Unable to start server on %v: %v",
+		log.Errorf("Unable to start server on %v: %v",
 			cfg.Listeners, err)
 		return err
 	}
-	addInterruptHandler(func() {
-		btcdLog.Infof("Gracefully shutting down the server...")
-		server.Stop()
-		server.WaitForShutdown()
-	})
+
 	server.Start()
 	if serverChan != nil {
 		serverChan <- server
 	}
 
 	// Monitor for graceful server shutdown and signal the main goroutine
-	// when done.  This is done in a separate goroutine rather than waiting
+	// when done. This is done in a separate goroutine rather than waiting
 	// directly so the main goroutine can be signaled for shutdown by either
-	// a graceful shutdown or from the main interrupt handler.  This is
+	// a graceful shutdown or from the main interrupt handler. This is
 	// necessary since the main goroutine must be kept running long enough
 	// for the interrupt handler goroutine to finish.
 	go func() {
 		server.WaitForShutdown()
-		srvrLog.Infof("Server shutdown complete")
+		log.Infof("Server shutdown complete")
 		shutdownChannel <- struct{}{}
 	}()
 
 	// Wait for shutdown signal from either a graceful server stop or from
 	// the interrupt handler.
 	<-shutdownChannel
-	btcdLog.Info("Shutdown complete")
+	log.Infof("Gracefully shutting down the database...")
+	db.RollbackClose()
+	log.Infof("Shutdown complete")
 	return nil
 }
 
@@ -133,22 +89,45 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Call serviceMain on Windows to handle running as a service.  When
-	// the return isService flag is true, exit now since we ran as a
-	// service.  Otherwise, just fall through to normal operation.
-	if runtime.GOOS == "windows" {
-		isService, err := winServiceMain()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-		if isService {
-			os.Exit(0)
-		}
-	}
+	service.Main(&service.Info{
+		Name: "btcd",
+		Description: "Go-language full node Bitcoin daemon",
+		RunFunc: func(smgr service.Manager) error {
 
-	// Work around defer not working after os.Exit()
-	if err := btcdMain(nil); err != nil {
-		os.Exit(1)
-	}
+			// btcdMain sends *Server on schan once it has finished
+			// starting.
+			schan := make(chan *btcserver.Server)
+			doneChan := make(chan error)
+			go func() {
+				doneChan <- btcdMain(schan)
+			}()
+
+			var s *btcserver.Server
+
+			select {
+			case err := <-doneChan:
+				// premature exit
+				return err
+			case s = <-schan:
+			}
+
+			// server started, drop privileges and notify
+			err := smgr.DropPrivileges()
+			if err != nil {
+				return err
+			}
+
+			smgr.SetStarted()
+
+			// wait for stop or spontaneous exit
+			select {
+				case <-smgr.StopChan():
+					s.Stop()
+					return <-doneChan
+				case err := <-doneChan:
+					// spontaneous exit
+					return err
+			}
+		},
+	})
 }

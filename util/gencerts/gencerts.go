@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hlandauf/btcutil"
 	flags "github.com/conformal/go-flags"
+	"github.com/hlandauf/btcutil"
 )
 
 type config struct {

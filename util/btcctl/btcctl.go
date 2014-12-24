@@ -10,11 +10,12 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/conformal/btcjson"
-	"github.com/hlandauf/btcutil"
-	"github.com/hlandauf/btcws"
+	"github.com/hlandauf/btcjson"
 	flags "github.com/conformal/go-flags"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/hlandauf/btcutil"
+	"github.com/hlandauf/btcws"
+  nctypes "github.com/hlandau/ncbtcjsontypes"
 )
 
 // conversionHandler is a handler that is used to convert parameters from the
@@ -120,6 +121,7 @@ var commandHandlers = map[string]*handlerData{
 	"walletlock":             {0, 0, displayGeneric, nil, makeWalletLock, ""},
 	"walletpassphrase":       {1, 1, displayGeneric, []conversionHandler{nil, toInt64}, makeWalletPassphrase, "<passphrase> [timeout]"},
 	"walletpassphrasechange": {2, 0, displayGeneric, nil, makeWalletPassphraseChange, "<oldpassphrase> <newpassphrase>"},
+  "name_show":              {1, 0, displayJSONDump, nil, makeNameShow, "<name>"},
 }
 
 // toSatoshi attempts to convert the passed string to a satoshi amount returned
@@ -862,6 +864,11 @@ func makeWalletPassphrase(args []interface{}) (btcjson.Cmd, error) {
 func makeWalletPassphraseChange(args []interface{}) (btcjson.Cmd, error) {
 	return btcjson.NewWalletPassphraseChangeCmd("btcctl", args[0].(string),
 		args[1].(string))
+}
+
+// makeNameShow
+func makeNameShow(args []interface{}) (btcjson.Cmd, error) {
+  return nctypes.NewNameShowCmd("btcctl", args[0].(string))
 }
 
 // send sends a JSON-RPC command to the specified RPC server and examines the

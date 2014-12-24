@@ -122,15 +122,3 @@ func torLookupIP(host, proxy string) ([]net.IP, error) {
 
 	return addr, nil
 }
-
-// dnsDiscover looks up the list of peers resolved by DNS for all hosts in
-// seeders. If proxy is not "" then it is used as a tor proxy for the
-// resolution.
-func dnsDiscover(seeder string) ([]net.IP, error) {
-	peers, err := btcdLookup(seeder)
-	if err != nil {
-		return nil, err
-	}
-
-	return peers, nil
-}

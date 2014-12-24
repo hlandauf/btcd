@@ -11,13 +11,13 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/hlandau/xlog"
+	flags "github.com/conformal/go-flags"
 	"github.com/hlandauf/btcdb"
 	_ "github.com/hlandauf/btcdb/ldb"
-	"github.com/conformal/btclog"
 	"github.com/hlandauf/btcnet"
 	"github.com/hlandauf/btcutil"
 	"github.com/hlandauf/btcwire"
-	flags "github.com/conformal/go-flags"
 )
 
 type ShaHash btcwire.ShaHash
@@ -34,9 +34,10 @@ type config struct {
 var (
 	btcdHomeDir     = btcutil.AppDataDir("btcd", false)
 	defaultDataDir  = filepath.Join(btcdHomeDir, "data")
-	log             btclog.Logger
 	activeNetParams = &btcnet.MainNetParams
 )
+
+var log, Log = xlog.New("dropafter", xlog.SevDebug)
 
 const (
 	ArgSha = iota
@@ -75,10 +76,10 @@ func main() {
 		return
 	}
 
-	backendLogger := btclog.NewDefaultBackendLogger()
-	defer backendLogger.Flush()
-	log = btclog.NewSubsystemLogger(backendLogger, "")
-	btcdb.UseLogger(log)
+	//backendLogger := btclog.NewDefaultBackendLogger()
+	//defer backendLogger.Flush()
+	//log = btclog.NewSubsystemLogger(backendLogger, "")
+	//btcdb.UseLogger(log)
 
 	// Multiple networks can't be selected simultaneously.
 	funcName := "main"

@@ -9,12 +9,12 @@ import (
 	"os"
 	"path/filepath"
 
+	flags "github.com/conformal/go-flags"
 	"github.com/hlandauf/btcdb"
 	_ "github.com/hlandauf/btcdb/ldb"
 	"github.com/hlandauf/btcnet"
 	"github.com/hlandauf/btcutil"
 	"github.com/hlandauf/btcwire"
-	flags "github.com/conformal/go-flags"
 )
 
 const (
@@ -24,10 +24,10 @@ const (
 )
 
 var (
-	btcdHomeDir     = btcutil.AppDataDir("btcd", false)
+	btcdHomeDir     = btcutil.AppDataDir("btcd-nmc", false)
 	defaultDataDir  = filepath.Join(btcdHomeDir, "data")
 	knownDbTypes    = btcdb.SupportedDBs()
-	activeNetParams = &btcnet.MainNetParams
+	activeNetParams = &btcnet.NmcMainNetParams
 )
 
 // config defines the configuration options for findcheckpoint.
@@ -36,6 +36,7 @@ var (
 type config struct {
 	DataDir        string `short:"b" long:"datadir" description:"Location of the btcd data directory"`
 	DbType         string `long:"dbtype" description:"Database backend to use for the Block Chain"`
+	NameDbType     string `long:"namedbtype" description:"Database backend to use for the name database"`
 	TestNet3       bool   `long:"testnet" description:"Use the test network"`
 	RegressionTest bool   `long:"regtest" description:"Use the regression test network"`
 	SimNet         bool   `long:"simnet" description:"Use the simulation test network"`

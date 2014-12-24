@@ -9,22 +9,24 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/hlandauf/btcchain"
+	//"github.com/hlandauf/btcchain"
+  "github.com/hlandau/xlog"
 	"github.com/hlandauf/btcd/limits"
 	"github.com/hlandauf/btcdb"
 	_ "github.com/hlandauf/btcdb/ldb"
-	"github.com/conformal/btclog"
 )
 
 const (
 	// blockDbNamePrefix is the prefix for the btcd block database.
 	blockDbNamePrefix = "blocks"
+	nameDbNamePrefix = "names"
 )
 
 var (
 	cfg *config
-	log btclog.Logger
 )
+
+var log, Log = xlog.New("addblock")
 
 // loadBlockDB opens the block database and returns a handle to it.
 func loadBlockDB() (btcdb.Db, error) {
@@ -77,11 +79,12 @@ func realMain() error {
 	cfg = tcfg
 
 	// Setup logging.
-	backendLogger := btclog.NewDefaultBackendLogger()
-	defer backendLogger.Flush()
-	log = btclog.NewSubsystemLogger(backendLogger, "")
-	btcdb.UseLogger(btclog.NewSubsystemLogger(backendLogger, "BCDB: "))
-	btcchain.UseLogger(btclog.NewSubsystemLogger(backendLogger, "CHAN: "))
+	//backendLogger := btclog.NewDefaultBackendLogger()
+	//defer backendLogger.Flush()
+	//log = btclog.NewSubsystemLogger(backendLogger, "")
+	//XXX
+  //btcdb.UseLogger(btclog.NewSubsystemLogger(backendLogger, "BCDB: "))
+	//btcchain.UseLogger(btclog.NewSubsystemLogger(backendLogger, "CHAN: "))
 
 	// Load the block database.
 	db, err := loadBlockDB()
@@ -107,7 +110,7 @@ func realMain() error {
 	// processed and read in parallel.  The results channel returned from
 	// Import contains the statistics about the import including an error
 	// if something went wrong.
-	log.Info("Starting import")
+	log.Infof("Starting import")
 	resultsChan := importer.Import()
 	results := <-resultsChan
 	if results.err != nil {

@@ -7,14 +7,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hlandauf/btcutil"
 	flags "github.com/conformal/go-flags"
+	"github.com/hlandauf/btcutil"
 )
 
 var (
-	btcdHomeDir           = btcutil.AppDataDir("btcd", false)
-	btcctlHomeDir         = btcutil.AppDataDir("btcctl", false)
-	btcwalletHomeDir      = btcutil.AppDataDir("btcwallet", false)
+	btcdHomeDir           = btcutil.AppDataDir("btcd-nmc", false)
+	btcctlHomeDir         = btcutil.AppDataDir("btcctl-nmc", false)
+	btcwalletHomeDir      = btcutil.AppDataDir("btcwallet-nmc", false)
 	defaultConfigFile     = filepath.Join(btcctlHomeDir, "btcctl.conf")
 	defaultRPCServer      = "localhost"
 	defaultRPCCertFile    = filepath.Join(btcdHomeDir, "rpc.cert")
@@ -61,7 +61,7 @@ func normalizeAddress(addr string, useTestNet3, useSimNet, useWallet bool) strin
 			if useWallet {
 				defaultPort = "8332"
 			} else {
-				defaultPort = "8334"
+				defaultPort = "8336" // XXX TODO, was: "8334"
 			}
 		}
 
